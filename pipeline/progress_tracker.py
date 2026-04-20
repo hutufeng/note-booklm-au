@@ -127,6 +127,18 @@ def clear_topic_progress(progress: dict, topic_id: str, kinds: list[str] | None 
     save_progress(progress)
 
 
+def mark_artifact_failed(progress: dict, topic_id: str, kind: str):
+    """
+    将失败的 artifact 从 progress.json 中清除，
+    这样下次运行时会自动重新提交该任务。
+    """
+    st = progress.get("topics", {}).get(topic_id, {})
+    st.pop(f"{kind}_artifact_id", None)
+    st.pop(f"{kind}_downloaded",  None)
+    st.pop(f"{kind}_path",        None)
+    save_progress(progress)
+
+
 def delete_local_files(progress: dict, topic_id: str, kinds: list[str] | None = None) -> list[str]:
     """
     删除本地文件。返回被删除的文件路径列表。

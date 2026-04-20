@@ -18,6 +18,7 @@ from pipeline.progress_tracker import (
     get_artifact_id,
     mark_artifact_generated,
     mark_artifact_downloaded,
+    mark_artifact_failed,
 )
 from pipeline.prompts import get_prompts
 
@@ -188,7 +189,9 @@ async def check_and_download(client, notebook_id, topic_id, kind, artifact_id,
 
             if status.is_failed:
                 print(f"\n  ✗ 任务已失败 [{kind}]：{topic_title}")
-                return True # 从队列移除
+                print(f"    → 已自动清除 progress 记录，下次运行时会自动重新提交生成。")
+                mark_artifact_failed(progress, topic_id, kind)
+                return True  # 从队列移除
 
     # 尝试下载
     out_path = ""
