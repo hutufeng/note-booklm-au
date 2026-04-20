@@ -41,7 +41,9 @@ def build_curriculum_json(
     """构建含指定 Artifact 路径和数据的课程 JSON"""
     if curriculum is None:
         curriculum = []
-    active_types = artifact_types or ["video", "quiz"]
+    active_types = artifact_types or [
+        "video", "audio", "slide", "quiz", "flashcard", "report", "infographic", "datatable"
+    ]
     result = []
     for ch in curriculum:
         ch_data = {"id": ch["id"], "title": ch["title"], "sections": []}
@@ -223,7 +225,21 @@ def generate_site(
         print("  [WARN] 未找到课程目录，网页将不含导航结构，请先生成目录")
         curriculum = []
 
-    active_types = artifact_types or ["video", "quiz"]
+    # 自动探测 progress.json 里有哪些类型已完成，作为默认类型集合
+    if artifact_types is None:
+        progress_auto = load_progress()
+        _all_kinds = ["video", "audio", "slide", "quiz", "flashcard", "report", "infographic", "datatable"]
+        auto_detected = [
+            k for k in _all_kinds
+            if any(
+                progress_auto.get("topics", {}).get(tid, {}).get(f"{k}_downloaded")
+                for tid in progress_auto.get("topics", {})
+            )
+        ]
+        active_types = auto_detected if auto_detected else _all_kinds
+        print(f"  [自动探测] 包含内容类型：{', '.join(active_types)}")
+    else:
+        active_types = artifact_types
 
     WEBSITE_DIR.mkdir(parents=True, exist_ok=True)
     ASSETS_DIR.mkdir(exist_ok=True)
