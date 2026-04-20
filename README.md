@@ -65,7 +65,7 @@ notebooklm login
 
 ```powershell
 conda activate notebooklm
-cd c:\Users\hutu_\notebooklm
+cd note-booklm-au  # 进入您 clone 下来的项目目录
 python book_generator.py
 ```
 
