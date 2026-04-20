@@ -1,0 +1,9 @@
+output/
+curriculum/
+progress.json
+config.json
+custom_prompts.json
+__pycache__/
+*.pyc
+.env
+.DS_Store

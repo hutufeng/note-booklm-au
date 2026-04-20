@@ -1,0 +1,8 @@
+# 依赖清单
+# 安装命令：pip install -r requirements.txt
+
+# NotebookLM Python API（需要浏览器登录支持）
+notebooklm-py[browser]>=0.3.4
+
+# Playwright（首次安装后还需运行：playwright install chromium）
+playwright>=1.40.0
