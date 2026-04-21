@@ -39,13 +39,21 @@ def _validate(curriculum: list) -> bool:
 
 
 def _extract_json(text: str) -> list | None:
+    import html
+    
+    # 1. 还原 HTML 实体（如 &quot; -> "）并清理 NotebookLM 可能返回的 HTML 标签
+    text = html.unescape(text)
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", "", text)
+    
     text = re.sub(r"```(?:json)?", "", text).strip()
     start, end = text.find("["), text.rfind("]")
     if start == -1 or end == -1:
         return None
     try:
         return json.loads(text[start: end + 1])
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        print(f"  [Debug] JSON 解析失败: {e}")
         return None
 
 
