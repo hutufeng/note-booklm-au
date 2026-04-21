@@ -32,59 +32,88 @@ _SITE_KINDS = [
 ]
 
 
+def _scan_first(src_dir: Path, prefix: str, suffix: str) -> Path | None:
+    """在 src_dir 中找第一个以 prefix 开头、以 suffix 结尾的文件"""
+    if not src_dir.exists():
+        return None
+    for f in src_dir.iterdir():
+        if f.name.startswith(prefix) and f.name.endswith(suffix):
+            return f
+    return None
+
+
 def build_curriculum_json(
     progress: dict,
     curriculum: list = None,
     selected_ids: list[str] | None = None,
     artifact_types: list[str] | None = None,
 ) -> list:
-    """构建含指定 Artifact 路径和数据的课程 JSON"""
+    """构建含指定 Artifact 路径和数据的课程 JSON。
+    双轨匹配：优先 progress.json，兜底直接扫 output/ 目录（解决 progress 缺失问题）。
+    """
     if curriculum is None:
         curriculum = []
     active_types = artifact_types or [
         "video", "audio", "slide", "quiz", "flashcard", "report", "infographic", "datatable"
     ]
+
+    def _ensure_site(src: Path | None, site_dir: Path, dest_name: str) -> str | None:
+        """复制文件到网站目录，返回相对路径；找不到返回 None"""
+        if not src or not src.exists():
+            return None
+        site_dir.mkdir(parents=True, exist_ok=True)
+        dest = site_dir / dest_name
+        if not dest.exists():
+            shutil.copy2(src, dest)
+        return f"{site_dir.name}/{dest_name}"
+
     result = []
     for ch in curriculum:
         ch_data = {"id": ch["id"], "title": ch["title"], "sections": []}
         for sec in ch["sections"]:
             sec_data = {"id": sec["id"], "title": sec["title"], "topics": []}
             for tp in sec["topics"]:
-                # 过滤知识点范围
                 if selected_ids is not None and tp["id"] not in selected_ids:
                     continue
                 status = progress.get("topics", {}).get(tp["id"], {})
+                tid = tp["id"]
 
-                # 视频
+                # ── 视频 ────────────────────────────────────────────
                 video_path = None
-                if "video" in active_types and status.get("video_downloaded"):
-                    vp = Path(status.get("video_path", ""))
-                    if vp.exists():
-                        video_path = "videos/" + vp.name
+                if "video" in active_types:
+                    vp = Path(status.get("video_path", "")) if status.get("video_downloaded") else None
+                    if not (vp and vp.exists()):
+                        vp = _scan_first(OUTPUT_DIR / "videos", tid, ".mp4")
+                    video_path = _ensure_site(vp, VIDEOS_SITE_DIR, vp.name) if vp else None
 
-                # 音频
+                # ── 音频 ────────────────────────────────────────────
                 audio_path = None
-                if "audio" in active_types and status.get("audio_downloaded"):
-                    ap = Path(status.get("audio_path", ""))
-                    if ap.exists():
-                        audio_path = "audios/" + ap.name
+                if "audio" in active_types:
+                    ap = Path(status.get("audio_path", "")) if status.get("audio_downloaded") else None
+                    if not (ap and ap.exists()):
+                        ap = _scan_first(OUTPUT_DIR / "audios", tid, ".mp3")
+                    audio_path = _ensure_site(ap, AUDIOS_SITE_DIR, ap.name) if ap else None
 
-                # Quiz
+                # ── Quiz ────────────────────────────────────────────
                 quiz_data = []
-                if "quiz" in active_types and status.get("quiz_downloaded"):
-                    qp = Path(status.get("quiz_path", ""))
-                    if qp.exists():
+                if "quiz" in active_types:
+                    qp = Path(status.get("quiz_path", "")) if status.get("quiz_downloaded") else None
+                    if not (qp and qp.exists()):
+                        qp = _scan_first(OUTPUT_DIR / "quizzes", tid, "_quiz.json")
+                    if qp and qp.exists():
                         try:
                             raw = json.loads(qp.read_text(encoding="utf-8"))
                             quiz_data = _parse_quiz_json(raw)
                         except Exception:
                             pass
 
-                # 闪卡
+                # ── 闪卡 ────────────────────────────────────────────
                 flashcard_data = []
-                if "flashcard" in active_types and status.get("flashcard_downloaded"):
-                    fp = Path(status.get("flashcard_path", ""))
-                    if fp.exists():
+                if "flashcard" in active_types:
+                    fp = Path(status.get("flashcard_path", "")) if status.get("flashcard_downloaded") else None
+                    if not (fp and fp.exists()):
+                        fp = _scan_first(OUTPUT_DIR / "flashcards", tid, "_fc.json")
+                    if fp and fp.exists():
                         try:
                             raw = json.loads(fp.read_text(encoding="utf-8"))
                             fc = raw if isinstance(raw, dict) else {}
@@ -92,66 +121,61 @@ def build_curriculum_json(
                         except Exception:
                             pass
 
-                # 学习报告
+                # ── 学习报告 ────────────────────────────────────────
                 report_path = None
                 report_content = None
-                if "report" in active_types and status.get("report_downloaded"):
-                    rp = Path(status.get("report_path", ""))
-                    if rp.exists():
-                        report_path = "reports/" + rp.name
+                if "report" in active_types:
+                    rp = Path(status.get("report_path", "")) if status.get("report_downloaded") else None
+                    if not (rp and rp.exists()):
+                        rp = _scan_first(OUTPUT_DIR / "reports", tid, "_report.md")
+                    if rp and rp.exists():
+                        report_path = _ensure_site(rp, REPORTS_SITE_DIR, rp.name)
                         try:
                             report_content = rp.read_text(encoding="utf-8")
                         except Exception:
                             pass
-                            
-                # 演示文稿： slide 或 audio 选了都检查（两者共用媒体演示页）
+
+                # ── 演示文稿 ────────────────────────────────────────
                 slide_path = None
                 if "slide" in active_types or "audio" in active_types:
-                    # 首选：按 ID 查已标准化复制的 PDF
-                    if (SLIDES_SITE_DIR / f"{tp['id']}.pdf").exists():
-                        slide_path = f"slides/{tp['id']}.pdf"
+                    # 优先标准化命名（website/slides/{tid}.pdf）
+                    if (SLIDES_SITE_DIR / f"{tid}.pdf").exists():
+                        slide_path = f"slides/{tid}.pdf"
                     else:
-                        # 兆底：按 ID 前缀模糊搜索
-                        for f in SLIDES_SITE_DIR.glob(f"{tp['id']}*.pdf"):
-                            slide_path = f"slides/{f.name}"
-                            break
-                    # 如果网站 slides 目录中没有，尝试从 progress 路径实时补将5
-                    if not slide_path and status.get("slide_downloaded"):
-                        sp = Path(status.get("slide_path", ""))
-                        if sp.exists():
-                            try:
-                                dest = SLIDES_SITE_DIR / f"{tp['id']}.pdf"
-                                shutil.copy2(sp, dest)
-                                slide_path = f"slides/{tp['id']}.pdf"
-                            except Exception:
-                                pass
+                        sp = Path(status.get("slide_path", "")) if status.get("slide_downloaded") else None
+                        if not (sp and sp.exists()):
+                            sp = _scan_first(OUTPUT_DIR / "slides", tid, ".pdf")
+                        if sp and sp.exists():
+                            dest_name = f"{tid}.pdf"
+                            SLIDES_SITE_DIR.mkdir(parents=True, exist_ok=True)
+                            shutil.copy2(sp, SLIDES_SITE_DIR / dest_name)
+                            slide_path = f"slides/{dest_name}"
 
-                # 信息图
+                # ── 信息图 ──────────────────────────────────────────
                 infographic_path = None
-                if "infographic" in active_types and status.get("infographic_downloaded"):
-                    ip_raw = status.get("infographic_path", "")
-                    if ip_raw:
-                        ip = Path(ip_raw)
-                        if ip.name and (OUTPUT_DIR / "infographics" / ip.name).exists():
-                            infographic_path = "infographics/" + ip.name
+                if "infographic" in active_types:
+                    ip = Path(status.get("infographic_path", "")) if status.get("infographic_downloaded") else None
+                    if not (ip and ip.exists()):
+                        ip = _scan_first(OUTPUT_DIR / "infographics", tid, ".png")
+                    infographic_path = _ensure_site(ip, INFO_SITE_DIR, ip.name) if ip else None
 
-                # 数据表
+                # ── 数据表 ──────────────────────────────────────────
                 datatable_path = None
-                if "datatable" in active_types and status.get("datatable_downloaded"):
-                    dp_raw = status.get("datatable_path", "")
-                    if dp_raw:
-                        dp = Path(dp_raw)
-                        if dp.name and (OUTPUT_DIR / "datatables" / dp.name).exists():
-                            datatable_path = "datatables/" + dp.name
+                if "datatable" in active_types:
+                    dp = Path(status.get("datatable_path", "")) if status.get("datatable_downloaded") else None
+                    if not (dp and dp.exists()):
+                        dp = _scan_first(OUTPUT_DIR / "datatables", tid, ".csv")
+                    datatable_path = _ensure_site(dp, TABLE_SITE_DIR, dp.name) if dp else None
 
                 # 如果没有任何数据，则跳过该知识点
-                if not (video_path or audio_path or quiz_data or flashcard_data or report_path or infographic_path or datatable_path or slide_path):
+                if not (video_path or audio_path or quiz_data or flashcard_data
+                        or report_path or infographic_path or datatable_path or slide_path):
                     continue
 
                 sec_data["topics"].append(
                     {
-                        "id": tp["id"],
-                        "title": tp["title"],
+                        "id":      tid,
+                        "title":   tp["title"],
                         "video":      video_path,
                         "audio":      audio_path,
                         "quiz":       quiz_data,
@@ -164,10 +188,8 @@ def build_curriculum_json(
                         "mindmap":    status.get("mindmap_downloaded") and status.get("mindmap_path"),
                     }
                 )
-            # 只有包含实际知识点的 section 才保留
             if sec_data["topics"]:
                 ch_data["sections"].append(sec_data)
-        # 只有包含实际内容的 chapter 才保留
         if ch_data["sections"]:
             result.append(ch_data)
     return result
