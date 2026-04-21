@@ -46,6 +46,12 @@ def _extract_json(text: str) -> list | None:
     text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
     text = re.sub(r"<[^>]+>", "", text)
     
+    # 2. 移除 NotebookLM 为了 Markdown 防护而添加的转义符（如 \\[ 变回 [）
+    text = text.replace("\\[", "[")
+    text = text.replace("\\]", "]")
+    text = text.replace("\\{", "{")
+    text = text.replace("\\}", "}")
+    
     text = re.sub(r"```(?:json)?", "", text).strip()
     start, end = text.find("["), text.rfind("]")
     if start == -1 or end == -1:
