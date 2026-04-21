@@ -54,6 +54,8 @@ def _extract_json(text: str) -> list | None:
         return json.loads(text[start: end + 1])
     except json.JSONDecodeError as e:
         print(f"  [Debug] JSON 解析失败: {e}")
+        target_str = text[start: end + 1]
+        print(f"  [Debug] 截取的内容片段: {repr(target_str[:150])}...{repr(target_str[-50:])}")
         return None
 
 
