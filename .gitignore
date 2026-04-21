@@ -1,5 +1,5 @@
 output/
-curriculum/
+curriculum/*.json
 progress.json
 config.json
 custom_prompts.json
