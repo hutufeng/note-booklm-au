@@ -141,8 +141,12 @@ def select_artifact_types(pre_selected: set[str] | None = None) -> dict[str, boo
         for idx, (kind, label) in enumerate(ALL_ARTIFACT_TYPES, 1):
             mark = "[x]" if kind in selected else "[ ]"
             print(f"    {idx}. {mark} {label}")
+        print("    Q. [ ] 取消并返回上级")
 
-        raw = input("\n  输入编号（可多个，用空格或逗号分隔），回车确认：").strip()
+        raw = input("\n  输入编号（可多个），或 Q 返回，回车确认：").strip()
+        
+        if raw.upper() in ("Q", "B"):
+            return {}
 
         if not raw:
             if not selected:
@@ -188,9 +192,12 @@ def select_account_plan() -> dict:
     print("\n── 选择 NotebookLM 账号类型 ──────────────────────")
     print("  [1] 免费账号（串行·冷却30秒·每批5个任务）")
     print("  [2] Pro 账号（3路并发·冷却10秒·每批15个任务）")
+    print("  [Q] 取消并返回上级")
     print()
     while True:
-        c = input("请选择（1/2）：").strip()
+        c = input("请选择（1/2/Q）：").strip().upper()
+        if c in ("Q", "B"):
+            return {}
         if c == "1":
             return {
                 "plan": "free", "concurrent": 1, "cooldown_seconds": 30,
@@ -224,10 +231,13 @@ def run_task_selection(
     print("  ch01_s02          → 整节")
     print("  ch01_s02_t01      → 单个知识点")
     print("  ch01,ch06_s03     → 组合（逗号分隔）")
+    print("  Q                 → 取消并返回上级")
     print()
 
     while True:
-        raw = input("请输入选择范围：\n> ").strip()
+        raw = input("请输入选择范围，或输入 Q 返回：\n> ").strip()
+        if raw.upper() in ("Q", "B"):
+            return [], {}, {}
         if not raw:
             print("  请输入内容")
             continue
@@ -240,6 +250,8 @@ def run_task_selection(
 
     # 选 Artifact 类型
     task_types = select_artifact_types()
+    if not task_types:
+        return [], {}, {}
 
     # 如果勾选了 audio 但没勾选 slide，进行友情提示
     if task_types.get("audio") and not task_types.get("slide"):
@@ -278,6 +290,8 @@ def run_task_selection(
         return [], {}, {}
 
     account_plan = select_account_plan()
+    if not account_plan:
+        return [], {}, {}
 
     # 预估时间
     n = len(selected)
@@ -298,8 +312,9 @@ def run_task_selection(
     print(f"  总任务数：{total_tasks}")
     print(f"  预估时间：约 {est_min:.0f} 分钟（受网络和 NotebookLM 响应影响）")
     print(f"  {'─' * 47}")
-
-    if input("\n确认开始执行？（Y/N）：").strip().upper() != "Y":
+    
+    confirm = input("\n确认开始生成？（Y/N）：").strip().upper()
+    if confirm != "Y":
         print("  已取消")
         return [], {}, {}
 

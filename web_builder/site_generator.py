@@ -371,10 +371,13 @@ def run_site_wizard(curriculum: list | None, progress: dict):
     print("\n── 生成 HTML 课程网页 ─────────────────────────────")
     print("  选择要打入网页的知识点范围（all 表示全部）")
     print("  格式：all / ch01 / ch01_s02 / ch01_s02_t01，逗号分隔多个")
+    print("  输入 Q 取消返回")
 
     selected_ids = None
     if curriculum:
         raw = input("\n> ").strip()
+        if raw.upper() in ("Q", "B"):
+            return
         if raw and raw.lower() != "all":
             selected_ids = parse_selection(raw, curriculum)
             if not selected_ids:
@@ -398,8 +401,11 @@ def run_site_wizard(curriculum: list | None, progress: dict):
             )
             avail = " ✓有数据" if has_data else ""
             print(f"    {idx}. {mark} {label}{avail}")
+        print("    Q. [ ] 取消返回")
 
-        raw = input("\n  输入编号切换选中/取消，回车确认：").strip()
+        raw = input("\n  输入编号切换选中/取消，或输入 Q 返回，回车确认：").strip()
+        if raw.upper() in ("Q", "B"):
+            return
         if not raw:
             if not selected_kinds:
                 print("  至少选一种！")

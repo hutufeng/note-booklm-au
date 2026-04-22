@@ -167,7 +167,11 @@ def _prompt_topic_selection(curriculum: list | None, label: str) -> list[str]:
     while True:
         print(f"\n  {label}")
         print("  格式：all / ch01 / ch01_s02 / ch01_s02_t01  （逗号分隔多选）")
+        print("  输入 Q 取消返回")
         raw = input("> ").strip()
+        if raw.upper() in ("Q", "B"):
+            print("  已取消")
+            return []
         if not raw:
             print("  已取消")
             return []
@@ -188,7 +192,10 @@ def _prompt_kind_selection() -> list[str] | None:
     print("  0. 全部类型")
     for idx, (kind, label) in enumerate(ALL_ARTIFACT_TYPES, 1):
         print(f"  {idx}. {label}")
-    raw = input("  输入编号（逗号或空格分隔），直接回车=全部：").strip()
+    print("  Q. 取消返回")
+    raw = input("  输入编号（逗号或空格分隔），直接回车=全部，Q=取消：").strip()
+    if raw.upper() in ("Q", "B"):
+        return ["CANCEL"]
     if not raw:
         return None  # 全部
     result = []
@@ -247,9 +254,11 @@ async def run_task_manager(client, notebook_id: str, curriculum: list | None):
             if not ids:
                 continue
             kinds = _prompt_kind_selection()
+            if kinds == ["CANCEL"]:
+                continue
             kinds_label = "全部类型" if kinds is None else "、".join(kinds)
             confirm = input(f"\n  ⚠ 将删除 {len(ids)} 个知识点的云端 [{kinds_label}] Artifact，"
-                            f"本地文件保留，确认？（Y/N）：").strip().upper()
+                            f"本地文件保留，确认？（Y/N/Q）：").strip().upper()
             if confirm != "Y":
                 print("  已取消")
                 continue
@@ -275,9 +284,11 @@ async def run_task_manager(client, notebook_id: str, curriculum: list | None):
             if not ids:
                 continue
             kinds = _prompt_kind_selection()
+            if kinds == ["CANCEL"]:
+                continue
             kinds_label = "全部类型" if kinds is None else "、".join(kinds)
             confirm = input(f"\n  ⚠ 将删除 {len(ids)} 个知识点的本地 [{kinds_label}] 文件，"
-                            f"云端 Artifact 保留，确认？（Y/N）：").strip().upper()
+                            f"云端记录保留，确认？（Y/N/Q）：").strip().upper()
             if confirm != "Y":
                 print("  已取消")
                 continue
@@ -302,9 +313,11 @@ async def run_task_manager(client, notebook_id: str, curriculum: list | None):
             if not ids:
                 continue
             kinds = _prompt_kind_selection()
+            if kinds == ["CANCEL"]:
+                continue
             kinds_label = "全部类型" if kinds is None else "、".join(kinds)
-            confirm = input(f"\n  ⚠ 将清除 {len(ids)} 个知识点的进度记录 [{kinds_label}]，"
-                            f"不删除文件或云端，确认？（Y/N）：").strip().upper()
+            confirm = input(f"\n  ⚠ 将清除 {len(ids)} 个知识点的 [{kinds_label}] 进度记录，"
+                            f"文件和云端不受影响，确认？（Y/N/Q）：").strip().upper()
             if confirm != "Y":
                 print("  已取消")
                 continue
@@ -323,6 +336,8 @@ async def run_task_manager(client, notebook_id: str, curriculum: list | None):
             if not ids:
                 continue
             kinds = _prompt_kind_selection()
+            if kinds == ["CANCEL"]:
+                continue
             kinds_label = "全部类型" if kinds is None else "、".join(kinds)
             
             # 筛选出有 artifact_id 的任务
